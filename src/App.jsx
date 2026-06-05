@@ -31,20 +31,28 @@ import { Toast } from './components/ui/Toast';
 import { GlobalPopup } from './components/ui/GlobalPopup';
 import { CampaignPortal } from './screens/CampaignPortal';
 
-function AppRoutes() {
+// Paths that should render OUTSIDE the mobile phone shell as full desktop pages
+const FULLPAGE_PATHS = ['/campaign-portal', '/distributor/campaign-portal'];
+
+// Inner component that has access to useLocation
+function AppInner() {
   const location = useLocation();
-  const isCampaignPortal = location.pathname === '/campaign-portal';
+  const isCampaignPortal = FULLPAGE_PATHS.some(p => location.pathname.startsWith(p));
 
   if (isCampaignPortal) {
+    // Render campaign portal as a raw full-width desktop page — no shell, no overflow constraints
     return (
-      <div style={{ width: '100%', minHeight: '100vh', position: 'relative' }}>
+      <div style={{ width: '100%' }}>
         <Routes>
           <Route path="/campaign-portal" element={<CampaignPortal />} />
+          <Route path="/distributor/campaign-portal" element={<CampaignPortal />} />
+          <Route path="*" element={<CampaignPortal />} />
         </Routes>
       </div>
     );
   }
 
+  // Normal mobile shell for all other routes
   return (
     <div className="shell" id="shell">
       <canvas id="confetti-c"></canvas>
@@ -83,10 +91,12 @@ function AppRoutes() {
 }
 
 function App() {
+  const { theme } = useAppContext();
+
   return (
     <ErrorBoundary>
       <Router>
-        <AppRoutes />
+        <AppInner />
       </Router>
     </ErrorBoundary>
   );

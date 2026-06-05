@@ -30,10 +30,15 @@ export const Cart = () => {
     setShowOtpPopup(true);
   };
 
-  const handleVerifyOTP = () => {
+  const handleVerifyOTP = async () => {
     if (saleOtp === generatedOtp || saleOtp === '1234') {
-      const e = completeSale(custName, custPhone, true);
-      navigate('/success', { state: { custName, ct, total, earned: e, firstItem: cart[0]?.name }});
+      try {
+        const e = await completeSale(custName, custPhone, true);
+        navigate('/success', { state: { custName, ct, total, earned: e, firstItem: cart[0]?.name }});
+      } catch (err) {
+        console.error(err);
+        showToast('❌ Error completing sale');
+      }
     } else {
       showToast(`❌ Wrong OTP. Demo code: ${generatedOtp}`);
       setSaleOtp('');
