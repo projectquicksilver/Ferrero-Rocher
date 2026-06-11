@@ -30,6 +30,11 @@ import { Notifications } from './screens/Notifications';
 import { Toast } from './components/ui/Toast';
 import { GlobalPopup } from './components/ui/GlobalPopup';
 import { CampaignPortal } from './screens/CampaignPortal';
+import { RewardsStore } from './screens/RewardsStore';
+import { RewardDetails } from './screens/RewardDetails';
+import { RewardsSuccess } from './screens/RewardsSuccess';
+import { MyRewards, DummyPartnerOffer } from './screens/MyRewards';
+import { Admin194rDashboard } from './screens/Admin194rDashboard';
 
 // Paths that should render OUTSIDE the mobile phone shell as full desktop pages
 const FULLPAGE_PATHS = ['/campaign-portal', '/distributor/campaign-portal'];
@@ -85,6 +90,12 @@ function AppInner() {
         <Route path="/assistant" element={<Assistant />} />
         <Route path="/notifications" element={<Notifications />} />
         <Route path="/sales" element={<Earnings />} />
+        <Route path="/rewards" element={<RewardsStore />} />
+        <Route path="/rewards/detail/:id" element={<RewardDetails />} />
+        <Route path="/rewards/success" element={<RewardsSuccess />} />
+        <Route path="/rewards/my-rewards" element={<MyRewards />} />
+        <Route path="/rewards/partner-link/:id" element={<DummyPartnerOffer />} />
+        <Route path="/admin/194r" element={<Admin194rDashboard />} />
       </Routes>
     </div>
   );

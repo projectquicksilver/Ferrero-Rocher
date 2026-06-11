@@ -381,3 +381,34 @@ select.ifield{appearance:none;cursor:pointer}
   border-top-color: var(--bdr2);
 }
 
+/* ─── REWARDS STYLES & ANIMATIONS ─── */
+@keyframes cos-confetti {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1.2) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(var(--dx), var(--dy), 0) scale(0.4) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+@keyframes cos-bounce {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-10px) scale(1.05); }
+}
+
+[data-theme="light"] [style*="background:linear-gradient(135deg,#1d120d 0%,#0b0604 100%)"] {
+  background: linear-gradient(135deg, var(--bg3) 0%, var(--bg2) 100%) !important;
+  border-color: var(--bdr2) !important;
+}
+
+[data-theme="light"] [style*="color:var(--g4)"] {
+  color: var(--t1) !important;
+}
+
+[data-theme="light"] .rewards-card-locked {
+  background: rgba(139,111,71,.04) !important;
+}
+
+

@@ -4,6 +4,17 @@ import { Intelligence } from '../services/intelligence';
 
 const AppContext = createContext();
 
+const DUMMY_REWARDS = [
+  { id: '1', title: '₹10 Instant Cashback', description: 'Instant cashback credited directly to your shop wallet. No minimum purchase required.', points_required: 100, category: 'cashback', reward_type: 'cashback', partner_name: 'Wallet Cash', terms_conditions: 'Instant credit. Non-refundable. Limits: Max 5 per day.', validity_days: 365, available_inventory: 1000 },
+  { id: '2', title: '₹50 Fuel Voucher', description: 'Save on your delivery transportation fuel. Valid at all major petrol pumps.', points_required: 500, category: 'travel', reward_type: 'voucher', partner_name: 'IndianOil', terms_conditions: 'Present voucher code at checkout counter. Valid on petrol/diesel.', validity_days: 90, available_inventory: 200 },
+  { id: '3', title: '₹100 Amazon Gift Card', description: 'Shop anything on Amazon India. Fully digital voucher code instantly delivered.', points_required: 1000, category: 'gift_card', reward_type: 'partner', partner_name: 'Amazon India', terms_conditions: 'Can be added directly to Amazon Pay balance. Valid for 1 year.', validity_days: 365, available_inventory: 500 },
+  { id: '4', title: '₹200 Wholesale Discount', description: 'Save on your next order from Rajesh Wholesaler. Exclusive business benefit.', points_required: 2000, category: 'business', reward_type: 'coupon', partner_name: 'CounterOS Wholesale', terms_conditions: 'Use code during Buy From Distributor checkout. Minimum order value ₹5,000.', validity_days: 60, available_inventory: 150 },
+  { id: '5', title: '₹500 Supermarket Cashback', description: 'High-value cashback reward for premium retail stores.', points_required: 4000, category: 'cashback', reward_type: 'cashback', partner_name: 'Wallet Cash', terms_conditions: 'Will be instantly credited to your wallet balance upon redemption.', validity_days: 365, available_inventory: 100 },
+  { id: '6', title: '₹1,000 Flipkart Gift Card', description: 'Redeemable on Flipkart India towards millions of products.', points_required: 8000, category: 'gift_card', reward_type: 'partner', partner_name: 'Flipkart', terms_conditions: 'Flipkart terms apply. Cannot be exchanged for cash.', validity_days: 365, available_inventory: 80 },
+  { id: '7', title: 'Smartphone Voucher', description: 'Get ₹2,000 off on select business smartphones. Upgrade your shop communication.', points_required: 15000, category: 'electronics', reward_type: 'partner', partner_name: 'Mi Store', terms_conditions: 'Applicable on Redmi & Xiaomi business phones. Valid online only.', validity_days: 90, available_inventory: 50 },
+  { id: '8', title: 'Mystery Confectionery Hamper', description: 'Win a special premium selection box of Ferrero Rocher & Raffaello specialties.', points_required: 25000, category: 'lucky_draw', reward_type: 'voucher', partner_name: 'Ferrero India', terms_conditions: 'Hamper will be shipped to your registered shop location. Subject to stock availability.', validity_days: 180, available_inventory: 20 }
+];
+
 const initialUser = { phone: '', name: 'Ramesh Kumar', shop: 'Kumar Sweet House', loc: 'Khetgaon, MP', cat: 'rocher', role: '' };
 const initialInv = [];
 
@@ -131,10 +142,24 @@ export const AppProvider = ({ children }) => {
   const [isSeeding, setIsSeeding] = useState(false);
 
   // ─── POINT CREDIT SYSTEM (for Ferrero products) ───────────────────────────
-  const [pointCredits, setPointCreditsState] = useState(() => loadFromStorage('counterOS_pointCredits', 0));
+  const [pointCreditsState, setPointCreditsState] = useState(() => loadFromStorage('counterOS_pointCredits', 0));
   const [pointTransactions, setPointTransactionsState] = useState(() =>
     loadFromStorage('counterOS_pointTransactions', [])
   );
+  const pointCredits = isSupabaseConfigured ? (user?.points_balance || 0) : pointCreditsState;
+
+  const [rewardsCatalog, setRewardsCatalog] = useState(() => DUMMY_REWARDS);
+  const [myRedemptions, setMyRedemptions] = useState(() => loadFromStorage('counterOS_myRedemptions', []));
+
+  // 194R Compliance States
+  const [kycDoc, setKycDocState] = useState(() => loadFromStorage('counterOS_kycDoc', null));
+  const [complianceRedemptions, setComplianceRedemptions] = useState(() => loadFromStorage('counterOS_complianceRedemptions', []));
+  const [complianceAuditLogs, setComplianceAuditLogs] = useState(() => loadFromStorage('counterOS_complianceAuditLogs', []));
+
+  const setKycDoc = (val) => {
+    setKycDocState(val);
+    saveToStorage('counterOS_kycDoc', val);
+  };
 
   // Use a ref to always access current user inside realtime callbacks (avoid stale closure)
   const userRef = React.useRef(user);
@@ -674,6 +699,85 @@ export const AppProvider = ({ children }) => {
             })));
           }
         }
+
+        // F. Load Rewards Catalog
+        try {
+          const { data: dbCatalog, error: catErr } = await supabase
+            .from('rewards_catalog')
+            .select('*')
+            .eq('is_active', true);
+          if (catErr) throw catErr;
+          if (dbCatalog && dbCatalog.length > 0) {
+            setRewardsCatalog(dbCatalog);
+          }
+        } catch (catE) {
+          console.warn('Skipped rewards catalog DB load, using fallbacks:', catE.message);
+        }
+
+        // G. Load My Redemptions
+        try {
+          const { data: dbRedemptions, error: redErr } = await supabase
+            .from('reward_redemptions')
+            .select('*, rewards_catalog(*)')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false });
+          if (redErr) throw redErr;
+          if (dbRedemptions) {
+            setMyRedemptions(dbRedemptions.map(r => ({
+              id: r.id,
+              rewardId: r.reward_id,
+              voucherCode: r.voucher_code,
+              status: r.status,
+              pointsUsed: r.points_used,
+              cashbackAmount: Number(r.cashback_amount || 0),
+              createdAt: r.created_at,
+              usedAt: r.used_at,
+              reward: r.rewards_catalog,
+              complianceStatus: r.compliance_status || 'Approved',
+              tdsApplied: Number(r.tds_applied || 0),
+              netBenefit: Number(r.net_benefit || 0),
+              kycDocId: r.kyc_doc_id,
+              complianceNotes: r.compliance_notes
+            })));
+          }
+        } catch (redE) {
+          console.warn('Skipped reward redemptions DB load:', redE.message);
+        }
+
+        // H. Load KYC Documents
+        try {
+          const { data: kycData, error: kycErr } = await supabase
+            .from('kyc_documents')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (kycErr) throw kycErr;
+          if (kycData) {
+            setKycDoc(kycData);
+          }
+        } catch (kycE) {
+          console.warn('Skipped KYC loading from DB, using fallbacks:', kycE.message);
+        }
+
+        // I. Load Admin Compliance Cases (For distributor or admin)
+        if (user.role === 'distributor' || user.role === 'admin') {
+          try {
+            const { data: compRed, error: compErr } = await supabase
+              .from('reward_redemptions')
+              .select('*, rewards_catalog(*), profiles(*)')
+              .neq('compliance_status', 'Approved')
+              .order('created_at', { ascending: false });
+            if (compErr) throw compErr;
+            if (compRed) {
+              setComplianceRedemptions(compRed);
+            }
+          } catch (compE) {
+            console.warn('Skipped compliance redemptions load:', compE.message);
+          }
+        }
+
       } catch (err) {
         console.error('Initial DB load error:', err);
       }
@@ -771,6 +875,72 @@ export const AppProvider = ({ children }) => {
       })
       .subscribe();
 
+    const redemptionsChannel = supabase
+      .channel('realtime-redemptions')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reward_redemptions' }, async (payload) => {
+        const currentUser = userRef.current;
+        if (!currentUser?.id) return;
+        
+        // Reload my redemptions
+        const { data: dbRedemptions } = await supabase
+          .from('reward_redemptions')
+          .select('*, rewards_catalog(*)')
+          .eq('user_id', currentUser.id)
+          .order('created_at', { ascending: false });
+        
+        if (dbRedemptions) {
+          setMyRedemptions(dbRedemptions.map(r => ({
+            id: r.id,
+            rewardId: r.reward_id,
+            voucherCode: r.voucher_code,
+            status: r.status,
+            pointsUsed: r.points_used,
+            cashbackAmount: Number(r.cashback_amount || 0),
+            createdAt: r.created_at,
+            usedAt: r.used_at,
+            reward: r.rewards_catalog,
+            complianceStatus: r.compliance_status || 'Approved',
+            tdsApplied: Number(r.tds_applied || 0),
+            netBenefit: Number(r.net_benefit || 0),
+            kycDocId: r.kyc_doc_id,
+            complianceNotes: r.compliance_notes
+          })));
+        }
+
+        // If admin/distributor, reload all compliance redemptions
+        if (currentUser.role === 'distributor' || currentUser.role === 'admin') {
+          const { data: compRed } = await supabase
+            .from('reward_redemptions')
+            .select('*, rewards_catalog(*), profiles(*)')
+            .neq('compliance_status', 'Approved')
+            .order('created_at', { ascending: false });
+          if (compRed) {
+            setComplianceRedemptions(compRed);
+          }
+        }
+      })
+      .subscribe();
+
+    const kycChannel = supabase
+      .channel('realtime-kyc')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'kyc_documents' }, async (payload) => {
+        const currentUser = userRef.current;
+        if (!currentUser?.id) return;
+
+        // Reload user KYC
+        const { data: kycData } = await supabase
+          .from('kyc_documents')
+          .select('*')
+          .eq('user_id', currentUser.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (kycData) {
+          setKycDoc(kycData);
+        }
+      })
+      .subscribe();
+
     const notifChannel = supabase
       .channel('realtime-notif')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` }, (payload) => {
@@ -801,6 +971,8 @@ export const AppProvider = ({ children }) => {
       supabase.removeChannel(ordersChannel);
       supabase.removeChannel(profileChannel);
       supabase.removeChannel(notifChannel);
+      supabase.removeChannel(redemptionsChannel);
+      supabase.removeChannel(kycChannel);
     };
   }, [user?.id, user?.role]);
 
@@ -1528,6 +1700,512 @@ export const AppProvider = ({ children }) => {
     }
   };
 
+  // ─── REWARDS REDEMPTION SYSTEM ──────────────────────────────────────────
+  const submitKYC = async (kycData) => {
+    if (isSupabaseConfigured && user?.id) {
+      try {
+        const { data: existingKyc } = await supabase
+          .from('kyc_documents')
+          .select('id')
+          .eq('user_id', user.id)
+          .limit(1)
+          .maybeSingle();
+
+        let result;
+        if (existingKyc?.id) {
+          const { data, error } = await supabase
+            .from('kyc_documents')
+            .update({
+              ...kycData,
+              pan_verified: true, // Simulated verification
+              kyc_approved: false // Set to false to allow distributor to approve in demo
+            })
+            .eq('id', existingKyc.id)
+            .select()
+            .single();
+          if (error) throw error;
+          result = data;
+        } else {
+          const { data, error } = await supabase
+            .from('kyc_documents')
+            .insert([{
+              user_id: user.id,
+              ...kycData,
+              pan_verified: true,
+              kyc_approved: false
+            }])
+            .select()
+            .single();
+          if (error) throw error;
+          result = data;
+        }
+
+        setKycDoc(result);
+        showToast('✅ KYC Submitted. Awaiting review.', 'success');
+        return result;
+      } catch (e) {
+        console.error('Failed to submit KYC in Supabase:', e);
+        showToast('❌ KYC Submission failed.', 'error');
+        return null;
+      }
+    } else {
+      const mockDoc = {
+        id: 'mock-kyc-' + Date.now(),
+        user_id: 'mock-user-id',
+        ...kycData,
+        pan_verified: true,
+        kyc_approved: false,
+        created_at: new Date().toISOString()
+      };
+      setKycDoc(mockDoc);
+      showToast('✅ KYC Submitted. Awaiting review. (Simulated)', 'success');
+      return mockDoc;
+    }
+  };
+
+  const updateComplianceStatus = async (redemptionId, nextStatus, notes = '') => {
+    if (isSupabaseConfigured) {
+      try {
+        const { data: redemption, error: getErr } = await supabase
+          .from('reward_redemptions')
+          .select('*, rewards_catalog(*)')
+          .eq('id', redemptionId)
+          .single();
+        if (getErr) throw getErr;
+
+        const updateFields = { compliance_status: nextStatus, compliance_notes: notes };
+        
+        if (nextStatus === 'Reward Released') {
+          // Generate active voucher code upon release
+          updateFields.voucher_code = `RLS-${Math.floor(100000 + Math.random() * 900000)}`;
+          updateFields.status = 'active';
+        } else if (nextStatus === 'Approved') {
+          // Change to Approved status
+          updateFields.voucher_code = `RLS-${Math.floor(100000 + Math.random() * 900000)}`;
+          updateFields.status = 'active';
+        }
+
+        const { error: updateErr } = await supabase
+          .from('reward_redemptions')
+          .update(updateFields)
+          .eq('id', redemptionId);
+        if (updateErr) throw updateErr;
+
+        // Log compliance audit entry
+        await supabase
+          .from('compliance_audit_logs')
+          .insert([{
+            redemption_id: redemptionId,
+            user_id: redemption.user_id,
+            action: nextStatus,
+            status_from: redemption.compliance_status,
+            status_to: nextStatus,
+            performed_by: 'Distributor',
+            notes: notes || `Compliance status updated to: ${nextStatus}`
+          }]);
+
+        // If Approved/Released, create notification. If Rejected, refund points & notify
+        if (nextStatus === 'Rejected') {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('points_balance')
+            .eq('id', redemption.user_id)
+            .single();
+          
+          if (profile) {
+            const refundedPoints = profile.points_balance + redemption.points_used;
+            await supabase
+              .from('profiles')
+              .update({ points_balance: refundedPoints })
+              .eq('id', redemption.user_id);
+          }
+
+          await supabase.from('notifications').insert([{
+            user_id: redemption.user_id,
+            title: '❌ Reward Compliance Rejected',
+            body: `Your redemption request for "${redemption.rewards_catalog.title}" was rejected. ${redemption.points_used} points have been refunded. Reason: ${notes || 'KYC invalid.'}`,
+            role: 'retailer',
+            type: 'notification'
+          }]);
+        } else {
+          await supabase.from('notifications').insert([{
+            user_id: redemption.user_id,
+            title: `🎉 Reward Approved: ${nextStatus}`,
+            body: `Your reward redemption for "${redemption.rewards_catalog.title}" is approved! Status: ${nextStatus}. Notes: ${notes || 'KYC details verified.'}`,
+            role: 'retailer',
+            type: 'notification'
+          }]);
+        }
+
+        showToast(`✅ Status updated to ${nextStatus}!`, 'success');
+        return true;
+      } catch (e) {
+        console.error('Failed to update compliance status in Supabase:', e);
+        showToast('❌ Status update failed.', 'error');
+        return false;
+      }
+    } else {
+      setMyRedemptions(prev => {
+        const next = prev.map(r => {
+          if (r.id === redemptionId) {
+            if (nextStatus === 'Rejected') {
+              setPointCreditsState(p => p + r.pointsUsed);
+            }
+            return {
+              ...r,
+              complianceStatus: nextStatus,
+              complianceNotes: notes,
+              voucherCode: (nextStatus === 'Reward Released' || nextStatus === 'Approved') 
+                ? `RLS-${Math.floor(100000 + Math.random() * 900000)}` 
+                : r.voucherCode,
+              status: (nextStatus === 'Reward Released' || nextStatus === 'Approved') ? 'active' : r.status
+            };
+          }
+          return r;
+        });
+        saveToStorage('counterOS_myRedemptions', next);
+        return next;
+      });
+
+      const newLog = {
+        id: 'mock-log-' + Date.now(),
+        redemption_id: redemptionId,
+        user_id: 'mock-user-id',
+        action: nextStatus,
+        status_to: nextStatus,
+        performed_by: 'Distributor',
+        notes,
+        created_at: new Date().toISOString()
+      };
+      setComplianceAuditLogs(prev => {
+        const next = [newLog, ...prev];
+        saveToStorage('counterOS_complianceAuditLogs', next);
+        return next;
+      });
+
+      addNotification({
+        title: nextStatus === 'Rejected' ? '❌ Reward Compliance Rejected' : `🎉 Reward Approved: ${nextStatus}`,
+        body: nextStatus === 'Rejected' 
+          ? `Your redemption was rejected. Points refunded. Reason: ${notes}`
+          : `Your reward compliance has reached "${nextStatus}". Notes: ${notes}`,
+        role: 'retailer',
+        type: 'notification',
+        isRead: false
+      });
+
+      showToast(`✅ Status updated to ${nextStatus}! (Simulated)`, 'success');
+      return true;
+    }
+  };
+
+  const redeemReward = async (reward, submittedKycData = null) => {
+    const currentPoints = isSupabaseConfigured ? (user?.points_balance || 0) : pointCreditsState;
+    if (currentPoints < reward.points_required) {
+      showToast('❌ Insufficient points!', 'error');
+      return null;
+    }
+
+    const redemptionId = Date.now().toString();
+    const pointsUsed = reward.points_required;
+    const isCashback = reward.reward_type === 'cashback';
+    const cashbackAmt = isCashback ? (reward.points_required / 10) : 0; // 10 points = 1 rupee cashback
+
+    // Section 194R check
+    const is194r = reward.is_194r_applicable === true || 
+                   String(reward.is_194r_applicable).toLowerCase() === 'yes' ||
+                   (Number(reward.reward_value) >= 20000);
+
+    const tdsPercent = is194r ? Number(reward.tds_percentage || 10) : 0;
+    const tdsAmt = is194r ? Number(reward.tds_amount || (reward.reward_value * tdsPercent / 100)) : 0;
+    const netBenefitVal = is194r ? (reward.reward_value - tdsAmt) : reward.reward_value;
+
+    let initialComplianceStatus = 'Approved';
+    let kycDocId = null;
+
+    if (is194r) {
+      const hasKyc = submittedKycData || kycDoc;
+      initialComplianceStatus = hasKyc ? 'Pending Verification' : 'Pending KYC';
+    }
+
+    const voucherCode = is194r 
+      ? '🔒 Released after compliance' 
+      : `${reward.reward_type === 'coupon' ? 'CPN' : reward.reward_type === 'voucher' ? 'VCH' : 'AMZ'}-${Math.floor(100000 + Math.random() * 900000)}`;
+
+    if (isSupabaseConfigured && user?.id) {
+      try {
+        const nextPoints = currentPoints - pointsUsed;
+        let nextWallet = walletBalance;
+        if (isCashback) {
+          nextWallet = walletBalance + cashbackAmt;
+        }
+
+        if (submittedKycData) {
+          const kycResult = await submitKYC(submittedKycData);
+          if (kycResult) {
+            kycDocId = kycResult.id;
+            initialComplianceStatus = 'Pending Verification';
+          }
+        } else if (kycDoc) {
+          kycDocId = kycDoc.id;
+        }
+
+        const { error: profileErr } = await supabase
+          .from('profiles')
+          .update({ 
+            points_balance: nextPoints, 
+            wallet_balance: nextWallet 
+          })
+          .eq('id', user.id);
+        if (profileErr) throw profileErr;
+
+        const { data: redemptionData, error: redemptionError } = await supabase
+          .from('reward_redemptions')
+          .insert([{
+            user_id: user.id,
+            reward_id: reward.id,
+            voucher_code: voucherCode,
+            status: is194r ? 'used' : 'active',
+            points_used: pointsUsed,
+            cashback_amount: cashbackAmt,
+            compliance_status: initialComplianceStatus,
+            tds_applied: tdsAmt,
+            net_benefit: netBenefitVal,
+            kyc_doc_id: kycDocId
+          }])
+          .select()
+          .single();
+        if (redemptionError) throw redemptionError;
+
+        if (isCashback) {
+          await supabase.from('transactions').insert([{
+             user_id: user.id,
+             type: 'cashback',
+             label: 'Points Cashback Claim',
+             sub: reward.title,
+             amt: '+₹' + cashbackAmt,
+             clr: '#ffd060',
+             icon: 'account_balance_wallet'
+          }]);
+          setWalletBalanceState(nextWallet);
+        }
+
+        if (is194r) {
+          await supabase.from('compliance_audit_logs').insert([{
+            redemption_id: redemptionData.id,
+            user_id: user.id,
+            action: 'Reward Selection',
+            status_from: null,
+            status_to: initialComplianceStatus,
+            performed_by: 'Retailer',
+            notes: `Selected high-value 194R reward: ${reward.title}. Value: ₹${reward.reward_value}`
+          }]);
+
+          if (submittedKycData) {
+            await supabase.from('compliance_audit_logs').insert([{
+              redemption_id: redemptionData.id,
+              user_id: user.id,
+              action: 'KYC Submission',
+              status_from: 'Pending KYC',
+              status_to: 'Pending Verification',
+              performed_by: 'Retailer',
+              notes: `Submitted PAN Card: ${submittedKycData.pan_number}`
+            }]);
+          }
+        }
+
+        const notifTitle = is194r ? '📋 Reward Held for 194R Compliance' : '🎉 Reward Redeemed Successfully';
+        const notifBody = is194r
+          ? `Redeemed ${reward.title} for ${pointsUsed} points. Held under Section 194R. TDS: ₹${tdsAmt}. Status: ${initialComplianceStatus}`
+          : `You successfully redeemed ${reward.title} for ${pointsUsed} points. Voucher Code: ${voucherCode}`;
+
+        await supabase.from('notifications').insert([{
+          user_id: user.id,
+          title: notifTitle,
+          body: notifBody,
+          role: 'retailer',
+          type: 'notification'
+        }]);
+
+        setUserState(prev => ({ ...prev, points_balance: nextPoints, wallet_balance: nextWallet }));
+        
+        const { data: dbRedemptions } = await supabase
+          .from('reward_redemptions')
+          .select('*, rewards_catalog(*)')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+        
+        if (dbRedemptions) {
+          setMyRedemptions(dbRedemptions.map(r => ({
+            id: r.id,
+            rewardId: r.reward_id,
+            voucherCode: r.voucher_code,
+            status: r.status,
+            pointsUsed: r.points_used,
+            cashbackAmount: Number(r.cashback_amount || 0),
+            createdAt: r.created_at,
+            usedAt: r.used_at,
+            reward: r.rewards_catalog,
+            complianceStatus: r.compliance_status || 'Approved',
+            tdsApplied: Number(r.tds_applied || 0),
+            netBenefit: Number(r.net_benefit || 0),
+            kycDocId: r.kyc_doc_id,
+            complianceNotes: r.compliance_notes
+          })));
+        }
+
+        showToast(is194r ? `📋 Held for 194R Compliance` : `🎉 Redeemed ${reward.title}!`);
+        return {
+          id: redemptionData.id,
+          voucherCode,
+          pointsUsed,
+          remainingPoints: nextPoints,
+          cashbackAmount: cashbackAmt,
+          complianceStatus: initialComplianceStatus
+        };
+      } catch (e) {
+        console.error('Failed to redeem reward in Supabase:', e);
+        showToast('❌ Redemption failed. Try again.', 'error');
+        return null;
+      }
+    } else {
+      if (submittedKycData) {
+        const mockDoc = {
+          id: 'mock-kyc-' + Date.now(),
+          user_id: 'mock-user-id',
+          ...submittedKycData,
+          pan_verified: true,
+          kyc_approved: false,
+          created_at: new Date().toISOString()
+        };
+        setKycDoc(mockDoc);
+        kycDocId = mockDoc.id;
+        initialComplianceStatus = 'Pending Verification';
+      }
+
+      setPointCreditsState(prev => {
+        const nextPoints = prev - pointsUsed;
+        saveToStorage('counterOS_pointCredits', nextPoints);
+        return nextPoints;
+      });
+
+      if (isCashback) {
+        setWalletBalance(prev => prev + cashbackAmt);
+        addTransaction({
+          type: 'cashback',
+          label: 'Points Cashback Claim',
+          sub: reward.title,
+          amt: '+₹' + cashbackAmt,
+          clr: '#ffd060',
+          icon: 'account_balance_wallet'
+        });
+      }
+
+      const newRedemption = {
+        id: redemptionId,
+        rewardId: reward.id,
+        voucherCode: voucherCode,
+        status: is194r ? 'used' : 'active',
+        pointsUsed: pointsUsed,
+        cashbackAmount: cashbackAmt,
+        createdAt: new Date().toISOString(),
+        reward: reward,
+        complianceStatus: initialComplianceStatus,
+        tdsApplied: tdsAmt,
+        netBenefit: netBenefitVal,
+        kycDocId: kycDocId,
+        complianceNotes: null
+      };
+
+      setMyRedemptions(prev => {
+        const next = [newRedemption, ...prev];
+        saveToStorage('counterOS_myRedemptions', next);
+        return next;
+      });
+
+      if (is194r) {
+        const auditLog1 = {
+          id: 'mock-audit-' + Date.now(),
+          redemption_id: redemptionId,
+          user_id: 'mock-user-id',
+          action: 'Reward Selection',
+          status_to: initialComplianceStatus,
+          performed_by: 'Retailer',
+          notes: `Selected high-value 194R reward: ${reward.title}. Value: ₹${reward.reward_value}`,
+          created_at: new Date().toISOString()
+        };
+        setComplianceAuditLogs(prev => {
+          const next = [auditLog1, ...prev];
+          saveToStorage('counterOS_complianceAuditLogs', next);
+          return next;
+        });
+
+        if (submittedKycData) {
+          const auditLog2 = {
+            id: 'mock-audit-' + (Date.now() + 1),
+            redemption_id: redemptionId,
+            user_id: 'mock-user-id',
+            action: 'KYC Submission',
+            status_to: 'Pending Verification',
+            performed_by: 'Retailer',
+            notes: `Submitted PAN Card: ${submittedKycData.pan_number}`,
+            created_at: new Date().toISOString()
+          };
+          setComplianceAuditLogs(prev => {
+            const next = [auditLog2, ...prev];
+            saveToStorage('counterOS_complianceAuditLogs', next);
+            return next;
+          });
+        }
+      }
+
+      addNotification({
+        title: is194r ? '📋 Reward Held for 194R Compliance' : '🎉 Reward Redeemed Successfully',
+        body: is194r
+          ? `Redeemed ${reward.title} for ${pointsUsed} points. Held under Section 194R. TDS: ₹${tdsAmt}. Status: ${initialComplianceStatus}`
+          : `You successfully redeemed ${reward.title} for ${pointsUsed} points. Voucher Code: ${voucherCode}`,
+        role: 'retailer',
+        type: 'notification',
+        isRead: false
+      });
+
+      showToast(is194r ? `📋 Held for 194R Compliance` : `🎉 Redeemed ${reward.title}!`);
+      return {
+        id: redemptionId,
+        voucherCode,
+        pointsUsed,
+        remainingPoints: pointCredits - pointsUsed,
+        cashbackAmount: cashbackAmt,
+        complianceStatus: initialComplianceStatus
+      };
+    }
+  };
+
+  const useVoucher = async (redemptionId) => {
+    if (isSupabaseConfigured) {
+      try {
+        await supabase
+          .from('reward_redemptions')
+          .update({ status: 'used', used_at: new Date().toISOString() })
+          .eq('id', redemptionId);
+
+        setMyRedemptions(prev => prev.map(r => r.id === redemptionId ? { ...r, status: 'used', usedAt: new Date().toISOString() } : r));
+        showToast('✅ Reward marked as used!');
+        return true;
+      } catch (e) {
+        console.error('Failed to update voucher status:', e);
+        return false;
+      }
+    } else {
+      setMyRedemptions(prev => {
+        const next = prev.map(r => r.id === redemptionId ? { ...r, status: 'used', usedAt: new Date().toISOString() } : r);
+        saveToStorage('counterOS_myRedemptions', next);
+        return next;
+      });
+      showToast('✅ Reward marked as used!');
+      return true;
+    }
+  };
+
   const value = {
     user,
     setUser,
@@ -1577,7 +2255,18 @@ export const AppProvider = ({ children }) => {
     pointCredits,
     pointTransactions,
     addPointCredits,
-    redeemPointCredits
+    redeemPointCredits,
+    // New Rewards System
+    rewardsCatalog,
+    myRedemptions,
+    redeemReward,
+    useVoucher,
+    // 194R Compliance Module Exports
+    kycDoc,
+    complianceRedemptions,
+    complianceAuditLogs,
+    submitKYC,
+    updateComplianceStatus
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

@@ -21,7 +21,8 @@ export const ShopSetup = () => {
   
   const [shopName, setShopName] = useState(user.shop || '');
   const [ownerName, setOwnerName] = useState(user.name || '');
-  const [gst, setGst] = useState('');
+  const [gst, setGst] = useState(user.gst_number || '');
+  const [pan, setPan] = useState(user.pan_number || '');
   const [category, setCategory] = useState(user.cat || 'rocher');
   const [locState, setLocState] = useState({ name: user.loc, coords: '', status: user.loc ? 'detected' : 'idle' });
   const [categoriesConfig, setCategoriesConfig] = useState(CAT_CONFIG);
@@ -86,7 +87,9 @@ export const ShopSetup = () => {
         name: ownerName, 
         cat: category, 
         loc: locState.name || 'India', 
-        role: 'retailer' 
+        role: 'retailer',
+        gst_number: gst.trim().toUpperCase() || null,
+        pan_number: pan.trim().toUpperCase() || null
       });
       showToast('✅ Saved!');
     } catch(e) {
@@ -118,6 +121,7 @@ export const ShopSetup = () => {
           <Input label="Shop Name / Trade Name" placeholder="e.g. Ramesh Gift Corner" value={shopName} onChange={e=>setShopName(e.target.value)} />
           <Input label="Owner Name" placeholder="e.g. Ramesh Kumar" value={ownerName} onChange={e=>setOwnerName(e.target.value)} />
           <Input label="GST Number (Optional)" placeholder="e.g. 23XXXXX0000X1Z5" value={gst} onChange={e=>setGst(e.target.value)} style={{textTransform:'uppercase'}} />
+          <Input label="PAN Card Number (Optional)" placeholder="e.g. ABCDE1234F" value={pan} onChange={e=>setPan(e.target.value)} style={{textTransform:'uppercase'}} maxLength={10} />
         </div>
 
         <div className="au d2" style={{ marginBottom: '1.5rem' }}>

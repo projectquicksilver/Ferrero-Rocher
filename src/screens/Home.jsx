@@ -141,31 +141,49 @@ Wallet: ₹${walletBalance}`;
                          </div>
                       </div>
                    </div>
-                </div>
-             </div>
+                           {/* POINT CREDITS SECTION - UPGRADED PREMIUM REWARDS WIDGET */}
+             <div className="au d2" style={{ background: 'linear-gradient(135deg, #1d120d 0%, #0b0604 100%)', border: '2.5px solid #d4a574', borderRadius: 'var(--r16)', overflow: 'hidden', marginBottom: '1.5rem', boxShadow: 'var(--sh)', padding: '1.25rem 1.1rem', position: 'relative' }}>
+                <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at top right, rgba(212,165,116,.15), transparent 70%)', pointerEvents: 'none' }}></div>
+                <div style={{ position: 'relative', zIndex: 2 }}>
+                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                      <span style={{ fontSize: '.72rem', fontWeight: 800, color: 'var(--g4)', textTransform: 'uppercase', letterSpacing: '.06em' }}>🏆 My Rewards</span>
+                      <span style={{ fontSize: '.68rem', fontWeight: 900, color: '#fff', background: 'rgba(212,165,116,.15)', border: '1px solid #d4a574', padding: '.2rem .5rem', borderRadius: '8px' }}>
+                         🥇 Gold Tier
+                      </span>
+                   </div>
 
-             {/* POINT CREDITS SECTION */}
-             <div className="au d2" style={{ background: '#fff', border: '2px solid #d4a574', borderRadius: 'var(--r16)', overflow: 'hidden', marginBottom: '1.5rem', boxShadow: '0 2px 8px rgba(212,165,116,.1)' }}>
-                <div style={{ padding: '1.25rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'linear-gradient(135deg, rgba(212,165,116,.05), rgba(196,30,58,.03))' }}>
-                   <div style={{ display: 'flex', alignItems: 'center', gap: '.7rem' }}>
-                      <div style={{ width: '2.8rem', height: '2.8rem', background: 'rgba(212,165,116,.12)', borderRadius: '.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                         <span style={{ fontSize: '1.4rem' }}>🏆</span>
-                      </div>
+                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1rem' }}>
                       <div>
-                         <p style={{ fontSize: '.68rem', fontWeight: 600, color: '#999', textTransform: 'uppercase', letterSpacing: '.05em', margin: 0 }}>Ferrero Points</p>
-                         <h2 style={{ fontSize: '1.8rem', fontFamily: 'var(--fd)', fontWeight: 900, color: '#d4a574', display: 'flex', alignItems: 'center', gap: '.4rem', margin: 0 }}>
+                         <p style={{ fontSize: '.65rem', color: 'var(--t3)', textTransform: 'uppercase', margin: 0 }}>Current Balance</p>
+                         <h2 style={{ fontSize: '2rem', fontFamily: 'var(--fd)', fontWeight: 900, color: '#fff', margin: 0, display: 'flex', alignItems: 'baseline', gap: '4px' }}>
                             {pointCredits.toLocaleString('en-IN')}
-                            <span style={{ fontSize: '.9rem', fontWeight: 600, color: '#999' }}>pts</span>
+                            <span style={{ fontSize: '.85rem', fontWeight: 600, color: 'var(--t2)' }}>Points</span>
                          </h2>
                       </div>
-                   </div>
-                   <div style={{ textAlign: 'right' }}>
-                      <p style={{ fontSize: '.75rem', color: '#999', margin: '0 0 .4rem 0' }}>Earn 1 point per ₹1</p>
-                      <button style={{ padding: '.5rem .8rem', background: 'linear-gradient(135deg, #d4a574, #c41e3a)', border: 'none', borderRadius: '9999px', color: '#fff', fontSize: '.75rem', fontWeight: 900, cursor: 'pointer' }}>
-                         Redeem
+                      <button 
+                         onClick={() => navigate('/rewards')} 
+                         style={{ padding: '.65rem 1.1rem', background: 'linear-gradient(135deg, #d4a574, #c41e3a)', border: 'none', borderRadius: '12px', color: '#fff', fontSize: '.8rem', fontWeight: 900, cursor: 'pointer', boxShadow: '0 4px 12px rgba(212,165,116,.3)', display: 'flex', alignItems: 'center', gap: '3px' }}
+                      >
+                         Redeem Rewards <span className="material-symbols-outlined" style={{ fontSize: '1rem' }}>arrow_forward</span>
                       </button>
                    </div>
+
+                   <div style={{ height: '1px', background: 'var(--bdr)', margin: '0.8rem 0' }}></div>
+
+                   <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.68rem', fontWeight: 700, color: 'var(--t2)', marginBottom: '.3rem' }}>
+                         <span>Progress to Platinum Tier</span>
+                         <span style={{ color: 'var(--g4)' }}>75%</span>
+                      </div>
+                      <div style={{ height: '5px', background: 'var(--bg4)', borderRadius: '9999px', overflow: 'hidden' }}>
+                         <div style={{ height: '100%', width: '75%', background: 'linear-gradient(90deg, #d4a574, #c41e3a)', borderRadius: '9999px' }} />
+                      </div>
+                      <p style={{ fontSize: '.62rem', color: 'var(--t3)', marginTop: '.35rem', margin: '0.35rem 0 0 0' }}>
+                         You are only <strong>1,150 points</strong> away from Platinum Tier perks!
+                      </p>
+                   </div>
                 </div>
+             </div>           </div>
              </div>
 
              {/* ACTIVE CAMPAIGNS SECTION */}

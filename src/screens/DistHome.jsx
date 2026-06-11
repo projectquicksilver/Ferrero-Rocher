@@ -106,6 +106,10 @@ export const DistHome = () => {
             <span className="material-symbols-outlined" style={{ color: 'var(--g4)', fontSize: '2rem' }}>payments</span>
             <p style={{ fontSize: '.85rem', fontWeight: 700, color: 'var(--t1)' }}>Ledger</p>
           </div>
+          <div onClick={() => navigate('/admin/194r')} style={{ background: 'linear-gradient(135deg, rgba(212,165,116,0.1) 0%, rgba(196,30,58,0.15) 100%)', border: '1.5px solid var(--g4)', borderRadius: 'var(--r12)', padding: '1rem', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '.5rem', cursor: 'pointer', gridColumn: 'span 2' }}>
+            <span className="material-symbols-outlined" style={{ color: 'var(--g4)', fontSize: '2rem' }}>gavel</span>
+            <p style={{ fontSize: '.85rem', fontWeight: 800, color: '#fff' }}>⚖️ 194R Tax Portal</p>
+          </div>
         </div>
 
         {/* Business Insights Mini */}
