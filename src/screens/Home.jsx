@@ -13,10 +13,15 @@ const WEEK_DATA = [
 
 export const Home = React.memo(() => {
   const navigate = useNavigate();
-  const { user, walletBalance, inventory, transactions, theme, toggleTheme, FERRERO_THEME, activeCampaigns, claimCampaign, pointCredits } = useAppContext();
+  const { 
+    user, walletBalance, inventory, transactions, theme, toggleTheme, FERRERO_THEME, 
+    activeCampaigns, claimCampaign, pointCredits,
+    monthlyTargets, simulateTargetProgress, claimTargetPoints 
+  } = useAppContext();
   const [insight, setInsight] = useState('');
   const [loadingInsight, setLoadingInsight] = useState(true);
   const [insightError, setInsightError] = useState(false);
+  const [showTargetsModal, setShowTargetsModal] = useState(false);
 
   // Memoized insight generation
   const generateInsight = useCallback(async () => {
@@ -58,6 +63,39 @@ Wallet: ₹${walletBalance}`;
   const maxVal = Math.max(...WEEK_DATA.map(d => d.purchase + d.sale));
   const fname = user.name.split(' ')[0] || 'Ramesh';
   const locShort = user.loc ? user.loc.split(',')[0] : 'India';
+
+  const totalProgress = monthlyTargets.reduce((acc, t) => {
+    const val = Number(t.target_value) > 0 ? (Number(t.current_value) / Number(t.target_value)) * 100 : 0;
+    return acc + Math.min(100, val);
+  }, 0);
+  const averageProgress = Math.round(totalProgress / (monthlyTargets.length || 1));
+
+  const triggerConfetti = () => {
+    const colors = ['#d4a574', '#c41e3a', '#8b6f47', '#ffd700', '#ff0000'];
+    const container = document.getElementById('shell') || document.body;
+    for (let i = 0; i < 50; i++) {
+      const el = document.createElement('div');
+      const dx = (Math.random() - 0.5) * 350;
+      const dy = (Math.random() - 0.8) * 300;
+      el.style.cssText = `
+        position: absolute;
+        top: 40%;
+        left: 50%;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: ${colors[i % colors.length]};
+        pointer-events: none;
+        z-index: 9999;
+        animation: cos-confetti 1.4s ease-out forwards;
+        --dx: ${dx}px;
+        --dy: ${dy}px;
+        animation-delay: ${Math.random() * 0.2}s;
+      `;
+      container.appendChild(el);
+      setTimeout(() => el.remove(), 1800);
+    }
+  };
 
   return (
     <AppLayout>
@@ -141,15 +179,109 @@ Wallet: ₹${walletBalance}`;
                          </div>
                       </div>
                    </div>
-                           {/* POINT CREDITS SECTION - UPGRADED PREMIUM REWARDS WIDGET */}
+                   {/* POINT CREDITS SECTION - UPGRADED PREMIUM REWARDS WIDGET */}
              <div className="au d2" style={{ background: 'linear-gradient(135deg, #1d120d 0%, #0b0604 100%)', border: '2.5px solid #d4a574', borderRadius: 'var(--r16)', overflow: 'hidden', marginBottom: '1.5rem', boxShadow: 'var(--sh)', padding: '1.25rem 1.1rem', position: 'relative' }}>
+                <style>{`
+                  @keyframes marquee {
+                    0% { transform: translate3d(0, 0, 0); }
+                    100% { transform: translate3d(-50%, 0, 0); }
+                  }
+                  .monthly-targets-btn {
+                    font-size: .7rem;
+                    font-weight: 900;
+                    color: #fff;
+                    background: linear-gradient(135deg, #c41e3a, #d4a574);
+                    border: 1.5px solid #ffd700;
+                    padding: .28rem .7rem;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 3px;
+                    box-shadow: 0 0 10px rgba(255, 215, 0, 0.4);
+                    animation: targetGlow 1.6s infinite alternate ease-in-out;
+                    transition: all 0.25s ease;
+                    position: relative;
+                  }
+                  .monthly-targets-btn:hover {
+                    transform: scale(1.08) translateY(-1px);
+                    background: linear-gradient(135deg, #d4a574, #c41e3a);
+                    box-shadow: 0 0 20px rgba(255, 215, 0, 0.8), 0 0 10px rgba(196, 30, 58, 0.6);
+                    border-color: #fff;
+                  }
+                  .monthly-targets-btn::after {
+                    content: '';
+                    position: absolute;
+                    top: -3px;
+                    right: -3px;
+                    width: 7px;
+                    height: 7px;
+                    background: #00ffcc;
+                    border: 1.2px solid #000;
+                    border-radius: 50%;
+                    box-shadow: 0 0 6px #00ffcc;
+                    animation: blinkDot 0.8s infinite alternate;
+                  }
+                  @keyframes targetGlow {
+                    0% {
+                      box-shadow: 0 0 6px rgba(255, 215, 0, 0.2), 0 0 3px rgba(196, 30, 58, 0.1);
+                      transform: scale(1);
+                    }
+                    100% {
+                      box-shadow: 0 0 14px rgba(255, 215, 0, 0.75), 0 0 7px rgba(196, 30, 58, 0.4);
+                      transform: scale(1.04);
+                    }
+                  }
+                  @keyframes blinkDot {
+                    0% { opacity: 0.3; transform: scale(0.8); }
+                    100% { opacity: 1; transform: scale(1.2); }
+                  }
+                `}</style>
                 <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at top right, rgba(212,165,116,.15), transparent 70%)', pointerEvents: 'none' }}></div>
                 <div style={{ position: 'relative', zIndex: 2 }}>
-                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.8rem' }}>
                       <span style={{ fontSize: '.72rem', fontWeight: 800, color: 'var(--g4)', textTransform: 'uppercase', letterSpacing: '.06em' }}>🏆 My Rewards</span>
-                      <span style={{ fontSize: '.68rem', fontWeight: 900, color: '#fff', background: 'rgba(212,165,116,.15)', border: '1px solid #d4a574', padding: '.2rem .5rem', borderRadius: '8px' }}>
-                         🥇 Gold Tier
-                      </span>
+                      <button 
+                         onClick={() => setShowTargetsModal(true)}
+                         className="monthly-targets-btn"
+                      >
+                         🎯 Monthly Targets
+                      </button>
+                   </div>
+
+                   {/* Horizontally Running Marquee Strip */}
+                   <div style={{
+                       background: 'rgba(20, 10, 5, 0.6)',
+                       borderTop: '1px solid rgba(212, 165, 116, 0.2)',
+                       borderBottom: '1px solid rgba(212, 165, 116, 0.2)',
+                       padding: '.35rem 0',
+                       overflow: 'hidden',
+                       margin: '0.5rem -1.1rem 0.8rem -1.1rem',
+                       display: 'flex'
+                   }}>
+                      <div style={{
+                          display: 'flex',
+                          gap: '2rem',
+                          paddingLeft: '1rem',
+                          animation: 'marquee 25s linear infinite',
+                          whiteSpace: 'nowrap'
+                      }}>
+                         {[...monthlyTargets, ...monthlyTargets].map((t, idx) => {
+                            let emoji = '🎯';
+                            if (t.id === 'target-1') emoji = '📦';
+                            if (t.id === 'target-2') emoji = '⚡';
+                            if (t.id === 'target-3') emoji = '💰';
+                            const progress = Math.min(100, Math.round((Number(t.current_value) / Number(t.target_value)) * 100));
+                            return (
+                               <span key={`${t.id}-${idx}`} style={{ color: '#d4a574', fontSize: '.72rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                  <span>{emoji}</span>
+                                  <span>{t.title}</span>
+                                  <span style={{ color: '#fff' }}>({t.current_value}/{t.target_value} {t.unit})</span>
+                                  <span style={{ color: progress >= 100 ? '#48bb78' : '#e53e3e', fontSize: '.65rem' }}>{progress}%</span>
+                               </span>
+                            );
+                         })}
+                      </div>
                    </div>
 
                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1rem' }}>
@@ -158,7 +290,7 @@ Wallet: ₹${walletBalance}`;
                          <h2 style={{ fontSize: '2rem', fontFamily: 'var(--fd)', fontWeight: 900, color: '#fff', margin: 0, display: 'flex', alignItems: 'baseline', gap: '4px' }}>
                             {pointCredits.toLocaleString('en-IN')}
                             <span style={{ fontSize: '.85rem', fontWeight: 600, color: 'var(--t2)' }}>Points</span>
-                         </h2>
+                          </h2>
                       </div>
                       <button 
                          onClick={() => navigate('/rewards')} 
@@ -172,18 +304,21 @@ Wallet: ₹${walletBalance}`;
 
                    <div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.68rem', fontWeight: 700, color: 'var(--t2)', marginBottom: '.3rem' }}>
-                         <span>Progress to Platinum Tier</span>
-                         <span style={{ color: 'var(--g4)' }}>75%</span>
+                         <span>Monthly Target Progress</span>
+                         <span style={{ color: '#d4a574', fontWeight: 900 }}>{averageProgress}%</span>
                       </div>
-                      <div style={{ height: '5px', background: 'var(--bg4)', borderRadius: '9999px', overflow: 'hidden' }}>
-                         <div style={{ height: '100%', width: '75%', background: 'linear-gradient(90deg, #d4a574, #c41e3a)', borderRadius: '9999px' }} />
+                      <div style={{ height: '7px', background: 'rgba(255,255,255,0.08)', borderRadius: '9999px', overflow: 'hidden', border: '1px solid rgba(212,165,116,0.1)' }}>
+                         <div style={{ height: '100%', width: `${averageProgress}%`, background: 'linear-gradient(90deg, #d4a574, #c41e3a)', borderRadius: '9999px', transition: 'width 0.5s ease-out' }} />
                       </div>
                       <p style={{ fontSize: '.62rem', color: 'var(--t3)', marginTop: '.35rem', margin: '0.35rem 0 0 0' }}>
-                         You are only <strong>1,150 points</strong> away from Platinum Tier perks!
+                         {averageProgress === 100 
+                           ? '🎉 Fantastic! You completed all monthly targets! Claim your rewards.' 
+                           : `Complete targets to earn bonus points and unlock rewards! Current progress: ${averageProgress}%`}
                       </p>
                    </div>
                 </div>
-             </div>           </div>
+             </div>
+             </div>
              </div>
 
              {/* ACTIVE CAMPAIGNS SECTION */}
@@ -453,6 +588,218 @@ Wallet: ₹${walletBalance}`;
           </div>
         </div>
       </div>
+
+       {showTargetsModal && (
+         <div style={{
+           position: 'fixed',
+           inset: 0,
+           background: 'rgba(0, 0, 0, 0.75)',
+           backdropFilter: 'blur(8px)',
+           display: 'flex',
+           alignItems: 'center',
+           justifyContent: 'center',
+           zIndex: 1000,
+           padding: '1.25rem',
+           animation: 'fadeIn 0.25s ease-out'
+         }}>
+           <div style={{
+             background: 'linear-gradient(135deg, #1d120d 0%, #0b0604 100%)',
+             border: '2.5px solid #d4a574',
+             borderRadius: 'var(--r16)',
+             width: '100%',
+             maxWidth: '380px',
+             padding: '1.5rem',
+             boxShadow: '0 10px 40px rgba(0,0,0,0.9)',
+             position: 'relative',
+             animation: 'slideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)'
+           }}>
+             {/* Header */}
+             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+               <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+                 <span style={{ fontSize: '1.4rem' }}>🎯</span>
+                 <h3 style={{ fontSize: '1.1rem', fontWeight: 900, color: '#d4a574', margin: 0 }}>Monthly Target Tracker</h3>
+               </div>
+               <button 
+                 onClick={() => setShowTargetsModal(false)}
+                 style={{
+                   background: 'rgba(255,255,255,0.08)',
+                   border: 'none',
+                   borderRadius: '50%',
+                   width: '1.8rem',
+                   height: '1.8rem',
+                   color: '#fff',
+                   display: 'flex',
+                   alignItems: 'center',
+                   justifyContent: 'center',
+                   cursor: 'pointer'
+                 }}
+               >
+                 <span className="material-symbols-outlined" style={{ fontSize: '1.1rem' }}>close</span>
+               </button>
+             </div>
+
+             {/* Modal description */}
+             <p style={{ fontSize: '.75rem', color: '#9c8572', margin: '0 0 1.25rem 0', lineHeight: 1.4 }}>
+               Achieve your monthly business metrics to earn bonus points. Points are credited immediately upon claiming.
+             </p>
+
+             {/* Targets list */}
+             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '350px', overflowY: 'auto', paddingRight: '.25rem' }}>
+               {monthlyTargets.map(t => {
+                 const progress = Math.min(100, Math.round((Number(t.current_value) / Number(t.target_value)) * 100));
+                 const isCompleted = t.status === 'completed' || progress >= 100;
+                 const isClaimed = t.status === 'claimed';
+
+                 let emoji = '🎯';
+                 if (t.id === 'target-1') emoji = '📦';
+                 if (t.id === 'target-2') emoji = '⚡';
+                 if (t.id === 'target-3') emoji = '💰';
+
+                 return (
+                   <div 
+                     key={t.id}
+                     style={{
+                       background: 'rgba(255,255,255,0.02)',
+                       border: isClaimed 
+                         ? '1.5px solid rgba(72,187,120,0.3)' 
+                         : isCompleted 
+                           ? '1.5px solid #d4a574' 
+                           : '1.5px solid rgba(212,165,116,0.15)',
+                       borderRadius: '12px',
+                       padding: '.85rem',
+                       display: 'flex',
+                       flexDirection: 'column',
+                       gap: '.55rem'
+                     }}
+                   >
+                     {/* Target Title & Reward Badge */}
+                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                       <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem' }}>
+                         <span style={{ fontSize: '1rem' }}>{emoji}</span>
+                         <h4 style={{ fontSize: '.82rem', fontWeight: 800, color: '#fff', margin: 0 }}>{t.title}</h4>
+                       </div>
+                       <span style={{
+                         fontSize: '.62rem',
+                         fontWeight: 900,
+                         color: isClaimed ? '#9c8572' : '#d4a574',
+                         background: isClaimed ? 'rgba(255,255,255,0.05)' : 'rgba(212,165,116,0.12)',
+                         border: isClaimed ? '1px solid rgba(255,255,255,0.1)' : '1px solid #d4a574',
+                         padding: '.15rem .4rem',
+                         borderRadius: '6px'
+                       }}>
+                         {isClaimed ? '✓ Claimed' : `+${t.points_reward} pts`}
+                       </span>
+                     </div>
+
+                     {/* Description */}
+                     <p style={{ fontSize: '.68rem', color: '#9c8572', margin: 0, lineHeight: 1.3 }}>{t.description}</p>
+
+                     {/* Target progress numbers */}
+                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.68rem', color: '#fff', fontWeight: 700 }}>
+                       <span style={{ color: '#9c8572' }}>Progress</span>
+                       <span>{t.current_value} / {t.target_value} {t.unit}</span>
+                     </div>
+
+                     {/* Target progress bar */}
+                     <div style={{ height: '6px', background: 'rgba(255,255,255,0.08)', borderRadius: '9999px', overflow: 'hidden' }}>
+                       <div 
+                         style={{ 
+                           height: '100%', 
+                           width: `${progress}%`, 
+                           background: isClaimed 
+                             ? '#48bb78' 
+                             : 'linear-gradient(90deg, #d4a574, #c41e3a)', 
+                           borderRadius: '9999px',
+                           transition: 'width 0.4s ease-out' 
+                         }} 
+                       />
+                     </div>
+
+                     {/* Simulation & Claim Actions */}
+                     <div style={{ display: 'flex', gap: '.5rem', marginTop: '.25rem' }}>
+                       {!isClaimed && (
+                         <button
+                           onClick={() => simulateTargetProgress(t.id, t.id === 'target-3' ? 50 : 1)}
+                           style={{
+                             flex: 1,
+                             padding: '.35rem .6rem',
+                             background: 'rgba(212,165,116,0.1)',
+                             border: '1px solid rgba(212,165,116,0.3)',
+                             borderRadius: '6px',
+                             color: '#d4a574',
+                             fontSize: '.68rem',
+                             fontWeight: 700,
+                             cursor: 'pointer',
+                             display: 'flex',
+                             alignItems: 'center',
+                             justifyContent: 'center',
+                             gap: '2px'
+                           }}
+                         >
+                           <span className="material-symbols-outlined" style={{ fontSize: '.85rem' }}>add</span>
+                           Simulate {t.id === 'target-3' ? '+₹50' : '+1'}
+                         </button>
+                       )}
+
+                       {isCompleted && !isClaimed && (
+                         <button
+                           onClick={async () => {
+                             const success = await claimTargetPoints(t.id);
+                             if (success) {
+                               triggerConfetti();
+                             }
+                           }}
+                           style={{
+                             flex: 1.2,
+                             padding: '.35rem .6rem',
+                             background: 'linear-gradient(135deg, #d4a574, #c41e3a)',
+                             border: 'none',
+                             borderRadius: '6px',
+                             color: '#fff',
+                             fontSize: '.68rem',
+                             fontWeight: 900,
+                             cursor: 'pointer',
+                             display: 'flex',
+                             alignItems: 'center',
+                             justifyContent: 'center',
+                             gap: '2px',
+                             boxShadow: '0 2px 8px rgba(212,165,116,0.4)',
+                             animation: 'pulse 1.5s infinite'
+                           }}
+                         >
+                           <span className="material-symbols-outlined" style={{ fontSize: '.85rem' }}>emoji_events</span>
+                           Claim Reward
+                         </button>
+                       )}
+
+                       {isClaimed && (
+                         <div style={{
+                           flex: 1,
+                           padding: '.35rem .6rem',
+                           background: 'rgba(72,187,120,0.08)',
+                           border: '1px solid rgba(72,187,120,0.2)',
+                           borderRadius: '6px',
+                           color: '#48bb78',
+                           fontSize: '.68rem',
+                           fontWeight: 700,
+                           textAlign: 'center',
+                           display: 'flex',
+                           alignItems: 'center',
+                           justifyContent: 'center',
+                           gap: '2px'
+                         }}>
+                           <span className="material-symbols-outlined" style={{ fontSize: '.9rem' }}>check_circle</span>
+                           Points Claimed
+                         </div>
+                       )}
+                     </div>
+                   </div>
+                 );
+               })}
+             </div>
+           </div>
+         </div>
+       )}
     </AppLayout>
   );
 });

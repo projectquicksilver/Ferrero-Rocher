@@ -156,6 +156,40 @@ export const AppProvider = ({ children }) => {
   const [complianceRedemptions, setComplianceRedemptions] = useState(() => loadFromStorage('counterOS_complianceRedemptions', []));
   const [complianceAuditLogs, setComplianceAuditLogs] = useState(() => loadFromStorage('counterOS_complianceAuditLogs', []));
 
+  // Monthly Targets State
+  const [monthlyTargets, setMonthlyTargets] = useState(() => loadFromStorage('counterOS_monthlyTargets', [
+    {
+      id: 'target-1',
+      title: 'Rocher Restock Target',
+      description: 'Restock Ferrero Rocher cartons to boost your inventory levels.',
+      current_value: 35,
+      target_value: 50,
+      unit: 'cartons',
+      points_reward: 5000,
+      status: 'in_progress'
+    },
+    {
+      id: 'target-2',
+      title: 'Rocher 16pc Sales Target',
+      description: 'Sell Ferrero Rocher 16pc boxes to retail customers.',
+      current_value: 12,
+      target_value: 15,
+      unit: 'boxes',
+      points_reward: 1500,
+      status: 'in_progress'
+    },
+    {
+      id: 'target-3',
+      title: 'Commission Earnings Target',
+      description: 'Earn commissions by selling premium Ferrero assortments.',
+      current_value: 750,
+      target_value: 1000,
+      unit: '₹',
+      points_reward: 3000,
+      status: 'in_progress'
+    }
+  ]));
+
   const setKycDoc = (val) => {
     setKycDocState(val);
     saveToStorage('counterOS_kycDoc', val);
@@ -778,6 +812,31 @@ export const AppProvider = ({ children }) => {
           }
         }
 
+        // J. Load Monthly Targets
+        try {
+          const { data: dbTargets, error: targetsErr } = await supabase
+            .from('retailer_monthly_targets')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: true });
+          if (targetsErr) throw targetsErr;
+          if (dbTargets && dbTargets.length > 0) {
+            setMonthlyTargets(dbTargets.map(t => ({
+              id: t.id,
+              user_id: t.user_id,
+              title: t.title,
+              description: t.description,
+              current_value: Number(t.current_value),
+              target_value: Number(t.target_value),
+              unit: t.unit,
+              points_reward: Number(t.points_reward),
+              status: t.status
+            })));
+          }
+        } catch (targetsE) {
+          console.warn('Skipped monthly targets loading from DB, using fallbacks:', targetsE.message);
+        }
+
       } catch (err) {
         console.error('Initial DB load error:', err);
       }
@@ -967,12 +1026,43 @@ export const AppProvider = ({ children }) => {
       })
       .subscribe();
 
+    const targetsChannel = supabase
+      .channel('realtime-targets')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'retailer_monthly_targets', filter: `user_id=eq.${user.id}` }, async (payload) => {
+        console.log('🎯 Realtime Monthly Targets change received:', payload);
+        const currentUser = userRef.current;
+        if (!currentUser?.id) return;
+
+        // Reload targets
+        const { data: dbTargets } = await supabase
+          .from('retailer_monthly_targets')
+          .select('*')
+          .eq('user_id', currentUser.id)
+          .order('created_at', { ascending: true });
+        
+        if (dbTargets) {
+          setMonthlyTargets(dbTargets.map(t => ({
+            id: t.id,
+            user_id: t.user_id,
+            title: t.title,
+            description: t.description,
+            current_value: Number(t.current_value),
+            target_value: Number(t.target_value),
+            unit: t.unit,
+            points_reward: Number(t.points_reward),
+            status: t.status
+          })));
+        }
+      })
+      .subscribe();
+
     return () => {
       supabase.removeChannel(ordersChannel);
       supabase.removeChannel(profileChannel);
       supabase.removeChannel(notifChannel);
       supabase.removeChannel(redemptionsChannel);
       supabase.removeChannel(kycChannel);
+      supabase.removeChannel(targetsChannel);
     };
   }, [user?.id, user?.role]);
 
@@ -2206,6 +2296,150 @@ export const AppProvider = ({ children }) => {
     }
   };
 
+  const simulateTargetProgress = async (targetId, increment) => {
+    let updatedTargets = [];
+    let completedTarget = null;
+    
+    setMonthlyTargets(prev => {
+      const next = prev.map(t => {
+        if (t.id === targetId) {
+          if (t.status !== 'in_progress') return t;
+          const nextVal = Math.min(Number(t.target_value), Number(t.current_value) + increment);
+          const nextStatus = nextVal >= Number(t.target_value) ? 'completed' : 'in_progress';
+          
+          const targetUpdated = { ...t, current_value: nextVal, status: nextStatus };
+          if (nextStatus === 'completed') {
+            completedTarget = targetUpdated;
+          }
+          return targetUpdated;
+        }
+        return t;
+      });
+      saveToStorage('counterOS_monthlyTargets', next);
+      updatedTargets = next;
+      return next;
+    });
+
+    if (completedTarget) {
+      showToast(`🎯 Target Completed: "${completedTarget.title}"! Click Claim to earn ${completedTarget.points_reward} points.`, 'success');
+    } else {
+      showToast(`📈 Progress updated!`, 'success');
+    }
+
+    if (isSupabaseConfigured) {
+      try {
+        const targetToUpdate = updatedTargets.find(t => t.id === targetId);
+        if (targetToUpdate) {
+          await supabase
+            .from('retailer_monthly_targets')
+            .update({ 
+              current_value: targetToUpdate.current_value, 
+              status: targetToUpdate.status,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', targetId);
+        }
+      } catch (e) {
+        console.error('Failed to sync target progress to Supabase:', e);
+      }
+    }
+  };
+
+  const claimTargetPoints = async (targetId) => {
+    let targetToClaim = null;
+    let updatedTargets = [];
+    
+    setMonthlyTargets(prev => {
+      const next = prev.map(t => {
+        if (t.id === targetId && t.status === 'completed') {
+          targetToClaim = t;
+          return { ...t, status: 'claimed' };
+        }
+        return t;
+      });
+      saveToStorage('counterOS_monthlyTargets', next);
+      updatedTargets = next;
+      return next;
+    });
+
+    if (!targetToClaim) {
+      showToast('❌ Target is not completed or already claimed.', 'error');
+      return false;
+    }
+
+    const pointsReward = targetToClaim.points_reward;
+    const currentPoints = isSupabaseConfigured ? (user?.points_balance || 0) : pointCreditsState;
+    const nextPoints = currentPoints + pointsReward;
+
+    if (isSupabaseConfigured && user?.id) {
+      try {
+        const { error: profileErr } = await supabase
+          .from('profiles')
+          .update({ points_balance: nextPoints })
+          .eq('id', user.id);
+        if (profileErr) throw profileErr;
+
+        const { error: targetErr } = await supabase
+          .from('retailer_monthly_targets')
+          .update({ 
+            status: 'claimed',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', targetId);
+        if (targetErr) throw targetErr;
+
+        await supabase.from('transactions').insert([{
+          user_id: user.id,
+          type: 'points_claim',
+          label: 'Target Reward Claim',
+          sub: targetToClaim.title,
+          amt: `+${pointsReward} pts`,
+          clr: '#d4af37',
+          icon: 'emoji_events'
+        }]);
+
+        await supabase.from('notifications').insert([{
+          user_id: user.id,
+          title: '🏆 Target Reward Claimed!',
+          body: `You claimed ${pointsReward} points for completing "${targetToClaim.title}".`,
+          role: 'retailer',
+          type: 'notification'
+        }]);
+
+        setUserState(prev => ({ ...prev, points_balance: nextPoints }));
+        showToast(`🏆 Claimed ${pointsReward} points successfully!`, 'success');
+        return true;
+      } catch (e) {
+        console.error('Failed to claim target reward in Supabase:', e);
+        showToast('❌ Claim failed. Please try again.', 'error');
+        return false;
+      }
+    } else {
+      setPointCreditsState(nextPoints);
+      saveToStorage('counterOS_pointCredits', nextPoints);
+
+      addTransaction({
+        type: 'points_claim',
+        label: 'Target Reward Claim',
+        sub: targetToClaim.title,
+        amt: `+${pointsReward} pts`,
+        clr: '#d4af37',
+        icon: 'emoji_events'
+      });
+
+      addNotification({
+        title: '🏆 Target Reward Claimed!',
+        body: `You claimed ${pointsReward} points for completing "${targetToClaim.title}".`,
+        role: 'retailer',
+        type: 'notification',
+        isRead: false
+      });
+
+      showToast(`🏆 Claimed ${pointsReward} points successfully! (Simulated)`, 'success');
+      return true;
+    }
+  };
+
   const value = {
     user,
     setUser,
@@ -2266,7 +2500,11 @@ export const AppProvider = ({ children }) => {
     complianceRedemptions,
     complianceAuditLogs,
     submitKYC,
-    updateComplianceStatus
+    updateComplianceStatus,
+    // Monthly Targets
+    monthlyTargets,
+    simulateTargetProgress,
+    claimTargetPoints
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
