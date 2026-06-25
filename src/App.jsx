@@ -35,14 +35,29 @@ import { RewardDetails } from './screens/RewardDetails';
 import { RewardsSuccess } from './screens/RewardsSuccess';
 import { MyRewards, DummyPartnerOffer } from './screens/MyRewards';
 import { Admin194rDashboard } from './screens/Admin194rDashboard';
+import { SubDBRouter } from './screens/subdb/SubDBRouter';
+import { MainDashboard } from './screens/MainDashboard';
 
 // Paths that should render OUTSIDE the mobile phone shell as full desktop pages
-const FULLPAGE_PATHS = ['/campaign-portal', '/distributor/campaign-portal'];
+const FULLPAGE_PATHS = ['/campaign-portal', '/distributor/campaign-portal', '/main_dashboard'];
 
 // Inner component that has access to useLocation
 function AppInner() {
   const location = useLocation();
+  const isSubDB = location.pathname.startsWith('/subdb_platform');
   const isCampaignPortal = FULLPAGE_PATHS.some(p => location.pathname.startsWith(p));
+
+  // SubDB: render inside the shell sizing div but WITHOUT re-rendering the shell
+  // on every sub-route change. This keeps SubDBProvider alive across navigations.
+  if (isSubDB) {
+    return (
+      <div className="shell" id="shell">
+        <Routes>
+          <Route path="/subdb_platform/*" element={<SubDBRouter />} />
+        </Routes>
+      </div>
+    );
+  }
 
   if (isCampaignPortal) {
     // Render campaign portal as a raw full-width desktop page — no shell, no overflow constraints
@@ -51,6 +66,7 @@ function AppInner() {
         <Routes>
           <Route path="/campaign-portal" element={<CampaignPortal />} />
           <Route path="/distributor/campaign-portal" element={<CampaignPortal />} />
+          <Route path="/main_dashboard" element={<MainDashboard />} />
           <Route path="*" element={<CampaignPortal />} />
         </Routes>
       </div>
